@@ -1,0 +1,17 @@
+filterQC <- function(peaktable, name, colqc, qcdiff = 2){  #creating filter function, assigning its parameters as the peaktable dataframe, the name of each variable (metabolite) and the factor of difference between qcs in sorting
+  iix <- which(peaktable[, "Name"] == name)    #setting the "index in x" to the row with the entry in the Name column
+  #cat(name, " ", length(iix), "\n")
+  if(length(iix) == 1){  #filtering by the length of each entry in iix (duplicates will have length = 2)
+    return(iix) #print out the value of iix (to keep)
+  }else{
+    qcvals <- peaktable[iix, colqc] #assign a matrix using the number row (iix) and the abundance for the qc 
+    qcmean <- apply(qcvals, 1, mean) # calculate the means for each duplicated one
+    #cat(name, " ", qcmean, "\n")
+    sortedqc <- sort(qcmean, index.return = TRUE, decreasing = TRUE) # sort by mean, in decreasing order
+    if(sortedqc$x[1] > qcdiff * sortedqc$x[2]){ #filtering the entries of the sorted matrix (if largest is larger by more than qcdiff factor, then keep 1, remove second)
+      return(iix[sortedqc$ix[1]]) # print the higher value
+    }else{
+      return(iix) # if not, print both
+    }
+  }
+}
