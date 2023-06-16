@@ -1,0 +1,95 @@
+#
+# Code for ....
+# (c) Henry
+#
+
+# See the following for easier access to R materials:
+# https://dannyarends.nl/pdf/Rintro.pdf
+# https://dannyarends.nl/pdf/Rcheats.pdf
+
+# Go somewhere on the HDD
+#setwd(#Make sure you can save your file anywhere on the HDD#)
+
+
+setwd("C:/Users/henry/OneDrive/Desktop/Danny - Coding pipeline")
+source("Decision 1 - Filter by QC.R")
+source("Decision 2 - Filter by RT.R")
+source("Decision 3 - Filter by RT gaps.R")
+
+# load in the data
+#peaktable <- read.table(#Make sure the file loads correctly#)
+
+peaktable <- read.table("HG_five_clones_Hilic_Pos.txt", header = TRUE, sep = "\t", comment.char = "",quote = "", check.names = FALSE)
+peaktable <- peaktable[-1, ]
+#peaktable[1:10, ]     # First 10 rows
+#peaktable[, 1:10]     # First 10 columns
+peaktable[1:10, 1:10] # First 10 rows and only 10 columns
+#colnames(peaktable)   # should show the appropriate columns
+
+peaktable <- peaktable[which(peaktable[, "mzCloud Best Match"]>=70),]
+
+single_names <- unique(peaktable[, "Name"])
+colqc <- grep("^Area: QC", colnames(peaktable))
+colrt <- grep("RT", colnames(peaktable))
+
+# Manipulation of data
+
+single_names[1:10]
+
+# Plots or something  || Write out the data manipulated
+tokeep = c()
+for(name in single_names){
+  # Descision 1
+  tokeep <- c(tokeep, filterQC(peaktable, name, colqc, 5))
+}
+cat("keeping", length(tokeep), "out of", nrow(peaktable), "\n")
+peaktable <- peaktable[tokeep,]
+single_names <- unique(peaktable[, "Name"])
+
+# Plots or something  || Write out the data manipulated
+tokeep = c()
+for(name in single_names){
+  # Descision 2
+  tokeep <- c(tokeep, filterrt(peaktable, name, colrt, 11.5))
+}
+cat("keeping", length(tokeep), "out of", nrow(peaktable), "\n")
+peaktable <- peaktable[tokeep,]
+single_names <- unique(peaktable[, "Name"])
+
+tokeep = c()
+for(name in single_names){
+  # Descision 3
+  tokeep <- c(tokeep, filterrtgaps(peaktable, name, colrt, 0.5))
+}  
+cat("keeping", length(tokeep), "out of", nrow(peaktable), "\n")
+peaktable <- peaktable[tokeep,]
+single_names <- unique(peaktable[, "Name"])
+
+
+npeak <- c()
+for(name in single_names){
+  iix <- which(peaktable[, "Name"] == name)
+  if(length(iix)==1){
+    npeak = rbind(npeak, peaktable[iix ,])
+  }else{
+    iicol <- grep("Area:" , colnames(peaktable))
+    Summedentry <- apply(peaktable[iix , iicol], 2, sum)
+    tocopy <- peaktable[iix[1],]
+    tocopy[iicol] <- Summedentry
+    npeak = rbind(npeak, tocopy)  #making the new reduced peaktable
+  }
+}
+cat("kept", nrow(npeak), "out of", nrow(peaktable), "\n")
+
+
+
+
+  #define the iix by name
+  #pick out the r.t columns 
+  #tokeep <- c(tokeep, filterrt(peaktable, name, colrt, 11.5))
+  # Descision 3
+  #tokeep <- c(tokeep, filterrtgaps(peaktable, name, colrt, 0.5))
+    
+  # Descision 4 - sum the remaining values together
+
+write.table(npeak, "Reduced peaktable.txt", sep="\t", quote=FALSE, row.names = FALSE)
