@@ -1,0 +1,22 @@
+#Decision 2 - retain/remove based on R.T (>11.5 min)
+filterrt <- function(peaktable, name, colrt, rtmax = 11.5){
+  iix <- which(peaktable[, "Name"] == name)
+#pick out the r.t columns 
+  colrt <- grep("RT", colnames(peaktable))
+
+  if(length(iix) == 1){
+     return (iix)
+  # make matrix with column number and rt
+  }else{ 
+    rtval <- peaktable[iix, colrt]
+  #cat(name,"has multiple entries")
+  #remove entries with rt over 11.5 min
+    if(all(rtval < rtmax)){
+      return (iix)
+    #cat(",all below 11.5\n")
+    }else{
+      return (iix[-which(rtval > rtmax)])
+    #cat(",some above 11.5\n")
+    }
+  }
+}  
