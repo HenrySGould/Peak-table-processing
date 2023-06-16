@@ -1,0 +1,16 @@
+filterrtgaps <- function(peaktable, name, colrt, time=0.5)
+  iix <- which(peaktable[, "Name"] == name)
+colrt <- grep("RT", colnames(peaktable))
+if(length(iix) == 1){
+  return(iix)
+}else{ 
+  rtval <- peaktable[iix, colrt]
+  sortedrt <- sort(rtval, index.return = TRUE)
+  rtgaps <- diff(sortedrt$x)
+  if(all(rtgaps <time)){
+    return(iix)
+  }else{
+    maxmatch <- which.max(peaktable[iix, "mzCloud Best Match"]) 
+    return(iix[maxmatch])
+  }
+}
