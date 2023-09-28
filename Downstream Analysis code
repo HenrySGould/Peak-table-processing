@@ -1,0 +1,66 @@
+setwd("C:/Users/henry/OneDrive/Desktop/Danny - Coding pipeline")
+
+pt <- read.csv("HG_five_clones_Hilic_Pos.txt", sep = "\t", check.names = FALSE, header=TRUE)
+pt <- pt[-1,]
+
+iix <- grep("Area..", colnames(pt))
+rn <- unlist(lapply(strsplit(gsub("Area..", "", colnames(pt)[iix]), "_Hilic"), "[",1))
+
+colnames(pt)[iix] <- rn
+
+classes <- c("7_8_A", "7_8_K", "AC", "C_A", "C_K", "Hal_1_A", "Hal_1_K", "Karl", "KR271_A", "KR271_K", "M3_5_A", "M3_5_K", "QC")
+
+pt[pt < 1e5] <- NA
+
+nm <- apply(pt[, iix],1,function(x){length(which(is.na(x)))})
+nmI <- apply(pt[, iix],2,function(x){length(which(is.na(x)))})
+
+colz <- as.numeric(as.factor(unlist(lapply(classes, rep, 10))))
+plot(nmI, col = colz, pch=19)
+
+# Do some QC (find outliers) - INITIAL ATTEMPT
+  
+  # Initialize an empty vector to store the outlier indices
+  outlier_indices <- c()
+  
+  # Iterate over each unique class
+  
+ for (class in classes){
+    iic <- grep(class, names(nmI))
+    
+    # Calculate mean and standard deviation for specified columns
+    class_means <- mean(nmI[iic])
+    class_stds <- sd(nmI[iic])
+  
+    
+    # Calculate lower and upper bounds for outliers
+    lower_bounds <- class_means - 2*class_stds
+    upper_bounds <- class_means + 2*class_stds
+    
+    # Identify outlier indices for the current class - Output is TRUE/FALSE
+    class_outliers <-  which(nmI[iic] < lower_bounds | nmI[iic] > upper_bounds)
+    
+    # Put outlier indices within the overall vector
+    outlier_indices <- c(outlier_indices, iic[class_outliers])
+  
+}
+  a <- rep(19, length(nmI))
+  a[outlier_indices] <- 5
+  
+  plot(nmI, col = colz, pch=a)
+  
+  #Removing outliers and looking at analysis again 
+  toremove <- names(nmI)[outlier_indices]
+  pt <- pt[, -which(colnames(pt) %in% toremove)]
+  
+  #for (class in classes){
+   class = classes[1]
+   iic <- grep(class, colnames(pt))
+   corM <- cor(pt[, iic], use = "pair")
+   corM <- corM[, apply(corM, 2, function(x) all(x>0.87))]
+   iic <- colnames(corM)
+   nmI[iic]
+   
+   #plot results
+   plot(nmI[iic], col = colz, pch = a)
+  
