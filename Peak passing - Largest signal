@@ -1,0 +1,35 @@
+setwd("C:/Users/henry/OneDrive - Northumbria University - Production Azure AD/Documents/PhD work/Extractions/45 P450 study SINGLE BATCH Jan 2023/DDA results")
+
+# load in the data
+#peaktable <- read.table(#Make sure the file loads correctly#)
+
+peaktable <- read.table("Hilic Pos 121.txt", header = TRUE, sep = "\t", comment.char = "",quote = "", check.names = FALSE)
+peaktable <- peaktable[-1, ]
+classlist <- read.csv("Hilic Pos 121 class list and analysis code.txt", header = TRUE, sep = "\t", check.names = FALSE) #Including the class list/code for replicate injections to be used from metadata
+
+peaktable <- rbind(classlist, peaktable) # binding the class list
+singlereppt <- which(peaktable[2 ,]==1) # selecting just those columns with an active code (1)
+peaktable <- peaktable[, singlereppt] # making the new peaktable without replicates to go through the passing algorithm 
+
+peaktable <- peaktable[which(peaktable[, "mzCloud Best Match"]>=70 ),]
+single_names <- unique(peaktable[, "Name"])
+npeak <- c()
+colqc <- grep("Area:QC", colnames(peaktable))
+
+tokeep = c()
+
+for(name in single_names){
+  iix <- which(peaktable[, "Name"] == name)
+  if(length(iix) == 1){
+    tokeep = c(tokeep, iix)
+  }else{
+    qcvals <- peaktable[iix, colqc]
+    qcmean <- apply(qcvals, 1, mean)
+    maxqc <- which.max(qcmean) # picking single value that is the max qc
+    tokeep = c(tokeep, iix[maxqc]) #iix small vector with only the values in maxqc kept, combining it with tokeep vector
+  }
+}
+
+
+
+write.table(peaktable[tokeep ,], "Reduced peaktable_Largest_signal_Hilic_Pos121.txt", sep="\t", quote=FALSE, row.names = FALSE)
