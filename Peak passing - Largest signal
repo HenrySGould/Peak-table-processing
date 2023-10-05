@@ -14,7 +14,7 @@ peaktable <- peaktable[, singlereppt] # making the new peaktable without replica
 peaktable <- peaktable[which(peaktable[, "mzCloud Best Match"]>=70 ),]
 single_names <- unique(peaktable[, "Name"])
 npeak <- c()
-colqc <- grep("Area:QC", colnames(peaktable))
+colqc <- grep("Area: QC", colnames(peaktable))
 
 tokeep = c()
 
@@ -24,12 +24,12 @@ for(name in single_names){
     tokeep = c(tokeep, iix)
   }else{
     qcvals <- peaktable[iix, colqc]
+    qcvals <- apply(qcvals, 2, as.numeric) #need to define qcvals as numeric
     qcmean <- apply(qcvals, 1, mean)
     maxqc <- which.max(qcmean) # picking single value that is the max qc
     tokeep = c(tokeep, iix[maxqc]) #iix small vector with only the values in maxqc kept, combining it with tokeep vector
   }
 }
-
 
 
 write.table(peaktable[tokeep ,], "Reduced peaktable_Largest_signal_Hilic_Pos121.txt", sep="\t", quote=FALSE, row.names = FALSE)
