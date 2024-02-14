@@ -1,0 +1,64 @@
+# Land mark clones (in each experimental block)
+- ERED
+- M3-5
+- pET28a
+
+- 2 extractions (ACN, KARL), 4 chromatochraphies
+- 2 blocks
+
+Each sample is in there ~ 8 times 
+In the metadata, some samples are to be removed (0) or kept (1)
+
+2 slides per excel file: Compounds & Metadata
+
+setwd("C:/Data/HG Results")
+
+modes <- c("Hilic_POS", "Hilic_NEG", "RP_POS", "RP_NEG")
+extractions <- c("ACN", "Karl")
+blocks <- c("Block B", "Block C")
+
+library("openxlsx")
+
+cV <- function(x){
+  res <- vector("list", length(x))
+  names(res) <- x
+  return(res)
+}
+
+result <- cV(blocks)
+for(block in blocks){
+  result[[block]] <- cV(modes)
+  for(mode in modes){
+    result[[block]][[mode]] <- cV(extractions)
+    for(extraction in extractions){
+      filename <- paste0("./", block, "/", mode, "/", extraction, "_", mode, ".xlsx")
+
+      peaktable <- read.xlsx(filename, sheet = "Compounds")
+      annot <- read.xlsx(filename, sheet = "Metadata")
+
+      # Keep the following
+      cidx <- which(annot[2,] == 1)
+      peaktable <- peaktable[, cidx]
+      annot <- annot[, cidx]
+
+
+      # Look at the samples
+      infoC <- grep("Area:", colnames(peaktable))
+      samples <- as.character(annot[1, infoC])
+
+      # Take the QCs and compute relative standard deviation to the mean (keep everything within 25%)
+      inPT <- infoC[which(samples == "QC")]
+
+      sds <- apply(peaktable[,inPT],1,sd)
+      mean <- apply(peaktable[,inPT],1,mean)
+      ridx <- which((sds/mean * 100) < 25)
+
+      # Subset the peak table
+      peaktable <- peaktable[ridx,]
+      dim(peaktable)
+      result[[block]][[mode]][[extraction]] <- peaktable
+      cat(filename, "loaded, with", nrow(peaktable), "entries passing QC < 25%\n")
+    }
+  }
+}
+
