@@ -1,17 +1,38 @@
 # Land mark clones (in each experimental block)
-- ERED
-- M3-5
-- pET28a
+#- ERED
+#- M3-5
+#- pET28a
 
-- 2 extractions (ACN, KARL), 4 chromatochraphies
-- 2 blocks
+#- 2 extractions (ACN, KARL), 4 chromatochraphies
+#- 2 blocks
 
-Each sample is in there ~ 8 times 
-In the metadata, some samples are to be removed (0) or kept (1)
+#Each sample is in there ~ 8 times 
+#In the metadata, some samples are to be removed (0) or kept (1)
 
-2 slides per excel file: Compounds & Metadata
+#2 slides per excel file: Compounds & Metadata
+
+# Function to calculate the total covariance for a combination of samples
+
+filterByCor <- function(peaktable, inPT, threshold = 0.95, nToKeep = 8) {
+  cMeansQCs <- apply(cor(peaktable[,inPT], use = "pair"), 1, mean)
+  plot(cMeansQCs, col = as.numeric(cMeansQCs < threshold) + 1, pch = 19)
+  abline(h = threshold)
+  if(any(cMeansQCs < threshold)) {
+    iBT <- which(cMeansQCs < threshold)
+    if((length(inPT) - length(iBT)) >= nToKeep) { # We're left with more than 8 QCs
+      cat("QCs variable, removing",length(iBT) , "/", length(inPT), "\n")
+      inPT <- inPT[-iBT]
+    } else { # We would be having less than 8 QCs
+      cat("QCs way too variable, keeping highest ",nToKeep,"\n")
+      sorted <- sort(cMeansQCs, index.return=TRUE, decreasing = TRUE)
+      inPT <- inPT[sorted$ix[1:nToKeep]]
+    }
+  }
+  return(inPT)
+}
 
 setwd("C:/Data/HG Results")
+#setwd("/home/rqdt9/Data/Henry/PeakTables_Dec23")
 
 modes <- c("Hilic_POS", "Hilic_NEG", "RP_POS", "RP_NEG")
 extractions <- c("ACN", "Karl")
@@ -40,7 +61,7 @@ for(block in blocks){
       cidx <- which(annot[2,] == 1)
       peaktable <- peaktable[, cidx]
       annot <- annot[, cidx]
-
+      
 
       # Look at the samples
       infoC <- grep("Area:", colnames(peaktable))
@@ -49,16 +70,27 @@ for(block in blocks){
       # Take the QCs and compute relative standard deviation to the mean (keep everything within 25%)
       inPT <- infoC[which(samples == "QC")]
 
-      sds <- apply(peaktable[,inPT],1,sd)
-      mean <- apply(peaktable[,inPT],1,mean)
+      # Make sure there are no NAs in the peaktable QCs
+      toR <- which(apply(apply(peaktable[, inPT],1,is.na),2, sum) > 0)
+      if(length(toR) > 0) {
+        cat("Warning QC values contain NA !!!!\n")
+        peaktable <- peaktable[-toR,]
+      }
+
+      # Variability filter
+      inPT <- filterByCor(peaktable, inPT)
+
+      sds <- apply(peaktable[,inPT], 1, sd)
+      mean <- apply(peaktable[,inPT], 1, mean)
       ridx <- which((sds/mean * 100) < 25)
 
-      # Subset the peak table
+      # Subset the peak table and add in class info
       peaktable <- peaktable[ridx,]
-      dim(peaktable)
+      classes <- annot[1 ,]
+      peaktable <- rbind(peaktable, classes)
+
       result[[block]][[mode]][[extraction]] <- peaktable
       cat(filename, "loaded, with", nrow(peaktable), "entries passing QC < 25%\n")
     }
   }
 }
-
