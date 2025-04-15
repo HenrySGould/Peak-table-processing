@@ -1,0 +1,130 @@
+setwd("C:/Data/HG Results (SMILES)")
+# --- Outlier Removal Function (Placed at Top) ---
+Outlierremoval <- function(peaktable_matrix, classColumns, threshold = 0.95, nToKeep = 6) {
+  # Check if there are too few columns to perform correlation
+  if (length(classColumns) < 2) {
+    cat("Too few samples for correlation. Returning original indices.\n")
+    return(classColumns)
+  }
+  
+  # Calculate correlation mean for each column in classColumns
+  cMeansclass <- apply(cor(peaktable_matrix[, classColumns, drop = FALSE], use = "pair"), 1, mean)
+  
+  # Check if any columns have correlation below the threshold
+  if (any(cMeansclass < threshold)) {
+    iBT <- which(cMeansclass < threshold)
+    
+    # Remove columns if the remaining columns are still >= nToKeep
+    if ((length(classColumns) - length(iBT)) >= nToKeep) {
+      cat("QCs variable, removing", length(iBT), "/", length(classColumns), "\n")
+      classColumns <- classColumns[-iBT]
+    } else {
+      # If we have too few, keep the highest nToKeep columns
+      cat("QCs way too variable, keeping highest", nToKeep, "\n")
+      sorted <- sort(cMeansclass, index.return = TRUE, decreasing = TRUE)
+      classColumns <- classColumns[sorted$ix[1:min(nToKeep, length(sorted$ix))]]
+    }
+  }
+  
+  return(classColumns)
+}
+
+# --- Load Libraries ---
+library(RColorBrewer)
+library(grDevices)
+library(gplots)  # For heatmap.2
+
+# --- Class Colour Generator Function ---
+generate_class_colours <- function(class_info, num_samples) {
+  unique_classes <- unique(class_info)
+  class_colours <- brewer.pal(12, "Set3")
+  class_colours <- colorRampPalette(class_colours)(length(unique_classes))
+  names(class_colours) <- unique_classes
+  
+  expanded_class_info <- rep(class_info, length.out = num_samples)
+  sample_colours <- class_colours[expanded_class_info]
+  
+  return(list(sample_colours = sample_colours, class_colours = class_colours))
+}
+
+# --- Heatmap Generation Loop ---
+for (block in names(result)) {
+  for (mode in names(result[[block]])) {
+    for (extraction in names(result[[block]][[mode]])) {
+      
+      # Extract peaktable and annotation
+      peaktable <- result[[block]][[mode]][[extraction]]$peaktable
+      samples <- grep("Area:", colnames(peaktable))
+      annot <- result[[block]][[mode]][[extraction]]$annotation
+      class_info <- as.character(unlist(annot[1, -c(1:9)]))
+      
+      # Set row names and extract numeric sample matrix
+      rownames(peaktable) <- peaktable$Name
+      peaktable <- peaktable[, samples]
+      peaktable_matrix <- as.matrix(sapply(peaktable, as.numeric))
+      peaktable_matrix <- na.omit(peaktable_matrix)
+      
+      # --- Outlier Removal Per Class ---
+      cleaned_columns <- c()
+      unique_classes <- unique(class_info)
+      
+      for (cls in unique_classes) {
+        class_indices <- which(class_info == cls)
+        
+        if (length(class_indices) == 0) {
+          cat("Warning: No samples found for class", cls, "\n")
+          next
+        }
+        
+        if (length(class_indices) < 2) {
+          cat("Skipping class", cls, "- not enough replicates for outlier filtering.\n")
+          cleaned_columns <- c(cleaned_columns, class_indices)
+          next
+        }
+        
+        # Ensure classColumns match valid columns in matrix
+        class_indices <- class_indices[class_indices <= ncol(peaktable_matrix)]
+        filtered_indices <- Outlierremoval(peaktable_matrix, class_indices, 0.95, 6)
+        cleaned_columns <- c(cleaned_columns, filtered_indices)
+      }
+      
+      # Subset matrix and class_info
+      peaktable_matrix <- peaktable_matrix[, cleaned_columns, drop = FALSE]
+      class_info <- class_info[cleaned_columns]
+      
+      # Generate colour mappings
+      colours_list <- generate_class_colours(class_info, length(cleaned_columns))
+      sample_colours <- colours_list$sample_colours
+      class_colours <- colours_list$class_colours
+      
+      # Define output filename
+      output_filename <- paste0("Heatmap_", block, "_", mode, "_", extraction, ".png")
+      
+      # Save heatmap as PNG
+      png(output_filename, width = 1200, height = 1000)
+      
+      heatmap.2(peaktable_matrix, 
+                col = colorRampPalette(brewer.pal(11, "RdYlGn"))(1000),
+                scale = "none",
+                margins = c(10, 10),
+                cexRow = 0.8,
+                cexCol = 0.8,
+                main = paste("Heatmap of", block, mode, extraction), 
+                xlab = "Samples", 
+                ylab = "Compounds",
+                trace = "none",
+                ColSideColors = sample_colours,
+                dendrogram = "both",
+                labRow = rownames(peaktable_matrix))
+      
+      # Add class legend
+      legend("topright", legend = names(class_colours), 
+             fill = class_colours,
+             title = "Sample Classes")
+      
+      dev.off()
+      
+      cat("Saved:", output_filename, "\n")
+    }
+  }
+}
