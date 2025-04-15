@@ -1,0 +1,142 @@
+#Set directory 
+setwd("C:/Data/HG Results")
+library(gplots)
+
+#source wilcox comparison function
+source("wilcox_comparison_function.R")
+
+#read in peaktables
+red_peaktable <- read.table("reduced_Block A_Hilic_POS_ACN.txt", sep = "\t", quote = "", na.strings = "NA")
+class_info <- as.character(red_peaktable[2, ])
+classes <- unique(class_info)
+
+#create vector to store Results
+
+subset_tables <- list()
+
+# Subset the data into tables for each class
+for (class_name in classes) {
+  # Find the column indices that match the current class name
+  sample_col <- which(class_info == class_name)
+  
+  # Subset the data frame based on the class
+  subset_data <- red_peaktable[-c(1:2), sample_col, drop = FALSE]
+  
+  # Add the subset data to the list, using class_name as the key
+  subset_tables[[as.character(class_name)]] <- subset_data
+}
+
+# Carry out significance test for each class vs pET
+omit_group <- c("pET28a", "NA", "NorQC", "M3-5", "QC")
+control_group <- "pET28a"
+
+wilcox_results <- list()
+
+for(class_name in names(subset_tables)){
+  #skip pET28a group as comparison is against that
+  if(is.na(class_name) || class_name == omit_group){
+    next
+  }
+  
+  #Retrive subset data
+  subset_data <- as.data.frame(lapply(subset_tables[[class_name]], as.numeric))
+  
+  #Set comparison function
+  control_data <- as.data.frame(lapply(subset_tables[[control_group]], as.numeric))
+  
+  # call significant test for function
+  results_data <- compare_classes(subset_data, control_data, "table", "pET28a")
+  
+  wilcox_results[[class_name]] <- results_data
+  
+}
+
+
+# Create a matrix to store regulation status for each comparison
+# Initialize with 0 (no significant regulation)
+
+num_comparisons <- length(wilcox_results)
+comparison_names <- names(wilcox_results)
+
+heatmap_matrix <- matrix(
+  0, 
+  nrow = nrow(red_peaktable[-c(1:2), ]), 
+  ncol = num_comparisons
+)
+metabolitenames <- red_peaktable[-c(1:2), 1]
+rownames(heatmap_matrix) <- metabolitenames
+colnames(heatmap_matrix) <- comparison_names
+
+
+for (comparison_name in comparison_names) {
+  current_results <- wilcox_results[[comparison_name]]
+  
+  # Update the heatmap matrix for this comparison
+  heatmap_matrix[rownames(current_results[current_results$fold_change > 1, ]), comparison_name] <- 1
+  heatmap_matrix[rownames(current_results[current_results$fold_change < 1, ]), comparison_name] <- -1
+}
+
+# Define a color palette: green for +1, red for -1, and white for 0
+heatmap_colors <- c("-1" = "red", "0" = "white", "1" = "green")
+
+
+png("Block A Hilic Pos wilcoxon heat map.png", width = 4000, height = 4000, res = 600, pointsize = 4)
+heatmap(
+  heatmap_matrix,
+  Rowv = NA, Colv = NA,              # Disable clustering
+  col = heatmap_colors[as.character(c(-1, 0, 1))],              # Set colors for the heatmap
+  scale = "none",
+  labRow = rownames(heatmap_matrix),
+  labCol = colnames(heatmap_matrix),
+  margins = c(5, 15), 
+  main = "Combined Heatmap",
+)
+dev.off()
+
+
+write.table(results_pET_A_vs_pET_M, sep = "\t", quote = FALSE)
+metabolites_pET <- rownames(results_pET_A_vs_pET_M)
+red_peaktable <- red_peaktable[-2, ]
+rownames(red_peaktable) <- red_peaktable[, 1]
+rowsboxplot <- red_peaktable[metabolites_pET, -c(1:12)]
+
+
+#START HERE
+
+pdf("boxplots pET.pdf", width = 15, height = 10)
+
+par(mfrow = c(3,3), mar = c(4, 4, 2, 1)) 
+
+Acn <- apply(rowsboxplot[, 1:5], 2, function(x) as.numeric(as.character(x)))
+MeOH <- apply(rowsboxplot[, 6:10], 2, function(x) as.numeric(as.character(x)))
+QC <- apply(rowsboxplot[, 21:23], 2, function(x) as.numeric(as.character(x)))
+
+# Combine the data into a list for plotting
+combinedlist <- list(A = Acn, M = MeOH, Q = QC)
+
+# Loop through rows of the data to create a separate set of 3 box plots for each row
+for (i in 1:nrow(rowsboxplot)) {
+  
+  # Extract the values for the i-th row
+  a_values <- combinedlist$A[i, ]  # Extract row i from Acn
+  m_values <- combinedlist$M[i, ]  # Extract row i from MeOH
+  q_values <- combinedlist$Q[i, ]  # Extract row i from QC
+  
+  # Create a list of the values to be plotted for this row
+  plot_data <- list(A = a_values, M = m_values, Q = q_values)
+  
+  # Create the box plot for the i-th row
+  boxplot(plot_data,
+          main = paste("Box plot for", rownames(rowsboxplot)[i]),  # Title for each plot
+          xlab = "Metabolite",
+          ylab = "Values",
+          col = c("lightblue", "lightgreen", "lightcoral"))
+  
+  if (i %% 9 == 0 && i != nrow(rowsboxplot)) {
+    dev.off()
+    pdf(paste0("boxplots pET_page", ceiling(i / 9), ".pdf"), width = 15, height = 10)
+    par(mfrow = c(3, 3), mar = c(4, 4, 2, 1))
+  }
+}
+
+dev.off()
