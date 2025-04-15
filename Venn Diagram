@@ -1,0 +1,73 @@
+
+library(VennDiagram)
+
+
+# Summarize unique metabolites in each block and across all blocks
+unique_metabolites_per_block <- list()
+all_metabolites <- c()
+
+for (block in names(result)) {
+  unique_metabolites_per_block[[block]] <- c()
+  for (mode in names(result[[block]])) {
+    for (extraction in names(result[[block]][[mode]])) {
+      peaktable <- result[[block]][[mode]][[extraction]]$peaktable
+      if (!is.null(peaktable)) {
+        unique_metabolites_per_block[[block]] <- unique(c(unique_metabolites_per_block[[block]], peaktable$Name))
+        all_metabolites <- unique(c(all_metabolites, peaktable$Name))
+      }
+    }
+  }
+}
+
+# Print the counts of unique metabolites
+for (block in names(unique_metabolites_per_block)) {
+  cat("Unique metabolites in", block, ":", length(unique_metabolites_per_block[[block]]), "\n")
+}
+cat("Total unique metabolites across all blocks:", length(all_metabolites), "\n")
+
+# Create Venn Diagram for Block Overlap
+venn.diagram(
+  main = "Blockwise overlap of metabolite numbers",
+  x = unique_metabolites_per_block,
+  category.names = names(unique_metabolites_per_block),
+  filename = "Metabolite_Overlap.png",
+  output = TRUE,
+  fill = c("red", "blue", "green", "yellow"),
+  alpha = 0.5,
+  cat.col = c("red", "blue", "green", "yellow"),
+  cat.cex = 1.2
+)
+
+# Separate RP and Hilic groups
+unique_metabolites_RP <- list()
+unique_metabolites_Hilic <- list()
+
+for (block in names(result)) {
+  unique_metabolites_RP[[block]] <- c()
+  unique_metabolites_Hilic[[block]] <- c()
+  for (mode in names(result[[block]])) {
+    for (extraction in names(result[[block]][[mode]])) {
+      peaktable <- result[[block]][[mode]][[extraction]]$peaktable
+      if (!is.null(peaktable)) {
+        if (grepl("RP", mode)) {
+          unique_metabolites_RP[[block]] <- unique(c(unique_metabolites_RP[[block]], peaktable$Name))
+        } else if (grepl("Hilic", mode)) {
+          unique_metabolites_Hilic[[block]] <- unique(c(unique_metabolites_Hilic[[block]], peaktable$Name))
+        }
+      }
+    }
+  }
+}
+
+# Create Venn Diagram for RP vs Hilic groups
+venn.diagram(
+  main = "Total metabolite overlap across all blocks Hilic vs RP",
+  x = list(RP = unique(unlist(unique_metabolites_RP)), Hilic = unique(unlist(unique_metabolites_Hilic))),
+  category.names = c("RP", "Hilic"),
+  filename = "RP_vs_Hilic_Overlap.png",
+  output = TRUE,
+  fill = c("purple", "orange"),
+  alpha = 0.5,
+  cat.col = c("purple", "orange"),
+  cat.cex = 1.2
+)
